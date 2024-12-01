@@ -1,21 +1,21 @@
 use std::{env, fs, process};
 
 fn parse_input(input: &str) -> (Vec<i32>, Vec<i32>) {
-    let mut col1 = Vec::new();
-    let mut col2 = Vec::new();
+    let mut left = Vec::new();
+    let mut right = Vec::new();
     for line in input.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
         }
         let mut parts = trimmed.split_whitespace();
-        let col1_val = parts.next().unwrap();
-        let col2_val = parts.next().unwrap();
-        col1.push(col1_val.parse().unwrap());
-        col2.push(col2_val.parse().unwrap());
+        let left_val = parts.next().unwrap();
+        let right_val = parts.next().unwrap();
+        left.push(left_val.parse().unwrap());
+        right.push(right_val.parse().unwrap());
 
     }
-    (col1, col2)
+    (left, right)
 }
 
 fn order_by_smallest(col: &Vec<i32>) -> Vec<i32> {
@@ -24,22 +24,36 @@ fn order_by_smallest(col: &Vec<i32>) -> Vec<i32> {
     ordered
 }
 
-fn calculate_differences(col1: &Vec<i32>, col2: &Vec<i32>) -> Vec<i32> {
-    let col1_ordered = order_by_smallest(col1);
-    let col2_ordered = order_by_smallest(col2);
+fn calculate_differences(left: &Vec<i32>, right: &Vec<i32>) -> Vec<i32> {
+    let left_ordered = order_by_smallest(left);
+    let right_ordered = order_by_smallest(right);
     let mut difference = Vec::new();
 
-    assert_eq!(col1_ordered.len(), col2_ordered.len());
-    for i in 0..col1.len() {
-        difference.push((col1_ordered[i] - col2_ordered[i]).abs());
+    assert_eq!(left_ordered.len(), right_ordered.len());
+    for i in 0..left.len() {
+        difference.push((left_ordered[i] - right_ordered[i]).abs());
     }
     difference
 }
 
-fn calculate_distance(input: &str) -> i32 {
-    let (col1, col2) = parse_input(input);
-    let diffs = calculate_differences(&col1, &col2);
+fn calculate_distance(left: &Vec<i32>, right: &Vec<i32>) -> i32 {
+    let diffs = calculate_differences(&left, &right);
     diffs.iter().sum()
+}
+
+fn calculate_similarities(left: &Vec<i32>, right: &Vec<i32>) -> Vec<i32> {
+    let mut similarities = Vec::new();
+    for i in 0..left.len() {
+        let occurrences = right.iter().filter(|&x| *x == left[i]).count() as i32;
+        let similarity = occurrences * left[i];
+        similarities.push(similarity);
+    }
+    similarities
+}
+
+fn calculate_similarity_score(left: &Vec<i32>, right: &Vec<i32>) -> i32 {
+    let similarities = calculate_similarities(left, right);
+    similarities.iter().sum()
 }
 
 fn main() {
@@ -53,8 +67,11 @@ fn main() {
     let file_path = &args[1];
     match fs::read_to_string(file_path) {
         Ok(content) => {
-            let distance = calculate_distance(&content);
+            let (left, right) = parse_input(&content);
+            let distance = calculate_distance(&left, &right);
+            let similarity = calculate_similarity_score(&left, &right);
             println!("Distance: {}", distance);
+            println!("Similarity: {}", similarity);
         },
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -76,9 +93,9 @@ mod test {
         3   9
         3   3
         "#;
-        let (col1, col2) = parse_input(input);
-        assert_eq!(col1, vec![3, 4, 2, 1, 3, 3]);
-        assert_eq!(col2, vec![4, 3, 5, 3, 9, 3]);
+        let (left, right) = parse_input(input);
+        assert_eq!(left, vec![3, 4, 2, 1, 3, 3]);
+        assert_eq!(right, vec![4, 3, 5, 3, 9, 3]);
     }
 
     #[test]
@@ -90,22 +107,32 @@ mod test {
 
     #[test]
     fn test_calculate_differences() {
-        let col1 = vec![3, 4, 2, 1, 3, 3];
-        let col2 = vec![4, 3, 5, 3, 9, 3];
-        let difference = calculate_differences(&col1, &col2);
+        let left = vec![3, 4, 2, 1, 3, 3];
+        let right = vec![4, 3, 5, 3, 9, 3];
+        let difference = calculate_differences(&left, &right);
         assert_eq!(difference, vec![2, 1, 0, 1, 2, 5]);
     }
 
     #[test]
+    fn test_calculate_similarity_score() {
+        let left = vec![3, 4, 2, 1, 3, 3];
+        let right = vec![4, 3, 5, 3, 9, 3];
+        let score = calculate_similarity_score(&left, &right);
+        assert_eq!(score, 31);
+    }
+
+    #[test]
+    fn test_calculate_similarities() {
+        let left = vec![3, 4, 2, 1, 3, 3];
+        let right = vec![4, 3, 5, 3, 9, 3];
+        let similarities = calculate_similarities(&left, &right);
+        assert_eq!(similarities, vec![9, 4, 0, 0, 9, 9]);
+    }
+
+    #[test]
     fn test_calculate_distance() {
-        let input = r#"
-        3   4
-        4   3
-        2   5
-        1   3
-        3   9
-        3   3
-        "#;
-        assert_eq!(11, calculate_distance(input))
+        let left = vec![3, 4, 2, 1, 3, 3];
+        let right = vec![4, 3, 5, 3, 9, 3];
+        assert_eq!(11, calculate_distance(&left, &right));
     }
 }
