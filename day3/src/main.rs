@@ -2,6 +2,13 @@ use std::{env, fs};
 use std::vec::Vec;
 
 #[derive(PartialEq, Debug)]
+enum Expr {
+    Do,
+    Dont,
+    Multiply(Mul),
+}
+
+#[derive(PartialEq, Debug)]
 struct Mul {
     x: i32,
     y: i32,
@@ -36,9 +43,9 @@ impl std::fmt::Display for Mul {
     }
 }
 
-fn parse(input: &str) -> Result<Vec<Mul>, &str> {
+fn parse(input: &str) -> Result<Vec<Expr>, &str> {
     let mut state = String::new();
-    let mut exps: Vec<Mul> = Vec::new();
+    let mut exps: Vec<Expr> = Vec::new();
     for char in input.chars() {
         match char {
             'm' => {
@@ -53,6 +60,39 @@ fn parse(input: &str) -> Result<Vec<Mul>, &str> {
                     state.clear();
                 }
             },
+            'd' => {
+                if state == "" {
+                    state.push(char);
+                } 
+            },
+            'o' => {
+                if state == "d" {
+                    state.push(char);
+                } else {
+                    state.clear();
+                }
+            },
+            'n' => {
+                if state == "do" {
+                    state.push(char);
+                } else {
+                    state.clear();
+                }
+            },
+            '\'' => {
+                if state == "don" {
+                    state.push(char);
+                } else {
+                    state.clear();
+                }
+            },
+            't' => {
+                if state == "don'" {
+                    state.push(char);
+                } else {
+                    state.clear();
+                }
+            },
             'l' => {
                 if state == "mu" {
                     state.push(char);
@@ -61,7 +101,7 @@ fn parse(input: &str) -> Result<Vec<Mul>, &str> {
                 }
             },
             '(' => {
-                if state == "mul" {
+                if state == "mul" || state == "do" || state == "don't" {
                     state.push(char);
                 } else {
                     state.clear();
@@ -85,11 +125,13 @@ fn parse(input: &str) -> Result<Vec<Mul>, &str> {
                 if state.ends_with(|c: char| c.is_ascii_digit()) {
                     state.push(char);
                     let mul = Mul::from_str(&state).or_else(|_| Result::Err("Failed to create Mul"))?;
-                    exps.push(mul);
-                    state = String::new();
-                } else {
-                    state = String::new();
+                    exps.push(Expr::Multiply(mul));
+                } else if state == "do(" {
+                    exps.push(Expr::Do);   
+                } else if state == "don't(" {
+                    exps.push(Expr::Dont);
                 }
+                state.clear();
             },
             _ => { 
                 state.clear();
@@ -99,10 +141,19 @@ fn parse(input: &str) -> Result<Vec<Mul>, &str> {
     Ok(exps)
 }
 
-fn run_expressions(exps: Vec<Mul>) -> i32 {
+fn run_expressions(exps: Vec<Expr>) -> i32 {
     let mut value = 0;
+    let mut accumulate = true;
     for exp in exps {
-        value += exp.value();
+        match exp {
+            Expr::Do => accumulate = true,
+            Expr::Dont => accumulate = false,
+            Expr::Multiply(exp) => {
+                if accumulate {
+                    value += exp.value();
+                }
+            }
+        }
     }
     value
 }
@@ -138,8 +189,8 @@ mod test {
         assert_eq!(
             exps, 
             vec![
-                Mul::new(44, 46),
-                Mul::new(123, 4),
+                Expr::Multiply(Mul::new(44, 46)),
+                Expr::Multiply(Mul::new(123, 4)),
             ],
         );
     }
@@ -168,5 +219,13 @@ mod test {
         let exps = parse(input).expect("Failed to parse");
         let value = run_expressions(exps);
         assert_eq!(value, 161);
+    }
+
+    #[test]
+    fn test_the_do_and_donts() {
+        let input = "xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))";
+        let exps = parse(input).expect("Failed to parse");
+        let value = run_expressions(exps);
+        assert_eq!(value, 48);
     }
 }
