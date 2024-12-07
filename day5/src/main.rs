@@ -2,7 +2,7 @@ use std::{env, fs, process};
 
 type PageOrdering = Vec<i32>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Rule {
     before: i32,
     after: i32,
@@ -65,11 +65,37 @@ fn parse_input(input: &str) -> Result<(Vec<Rule>, Vec<PageOrdering>), &str> {
     Ok((rules, page_orderings))
 }
 
+fn applicable_rules(ordering: &[i32], rules: &[Rule]) -> Vec<Rule> {
+    rules
+        .iter()
+        .filter(|rule| rule.applicable(ordering))
+        .cloned()
+        .collect()
+}
+
+fn correct(ordering: &[i32], rules: &[Rule]) -> Vec<i32> {
+    let mut corrected = ordering.to_vec();
+    corrected.sort_by(|a, b| {
+        let sort_rule = rules.iter().find(|rule| rule.before == *a && rule.after == *b);
+        match sort_rule {
+            Some(_) => std::cmp::Ordering::Less,
+            None => std::cmp::Ordering::Equal,
+        }
+    });
+    corrected
+}
+
 fn in_order(ordering: &[i32], rules: &[Rule]) -> bool {
-    let applicable_rules = rules.iter().filter(|rule| rule.applicable(ordering));
+    let applicable_rules = applicable_rules(ordering, rules);
     for rule in applicable_rules {
-        let before_index = ordering.iter().position(|&page| page == rule.before).unwrap();
-        let after_index = ordering.iter().position(|&page| page == rule.after).unwrap();
+        let before_index = ordering
+            .iter()
+            .position(|&page| page == rule.before)
+            .unwrap();
+        let after_index = ordering
+            .iter()
+            .position(|&page| page == rule.after)
+            .unwrap();
         if before_index > after_index {
             return false;
         }
@@ -90,6 +116,15 @@ fn sum_of_middle_valid_numbers(page_orderings: &[PageOrdering], rules: &[Rule]) 
         .sum()
 }
 
+fn sum_of_middle_corrected_numbers(page_orderings: &[PageOrdering], rules: &[Rule]) -> i32 {
+    page_orderings
+        .iter()
+        .filter(|ordering| !in_order(ordering, rules))
+        .map(|ordering| correct(ordering, &applicable_rules(ordering, rules)))
+        .map(|ordering| middle(&ordering))
+        .sum()
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -101,7 +136,14 @@ fn main() {
     match fs::read_to_string(&args[1]) {
         Ok(input) => match parse_input(&input) {
             Ok((rules, page_orderings)) => {
-                println!("Sum middle valid orderings {}", sum_of_middle_valid_numbers(&page_orderings, &rules));
+                println!(
+                    "Sum middle valid orderings {}",
+                    sum_of_middle_valid_numbers(&page_orderings, &rules)
+                );
+                println!(
+                    "Sum middle corrected orderings {}",
+                    sum_of_middle_corrected_numbers(&page_orderings, &rules)
+                );
             }
             Err(e) => {
                 eprintln!("Error parsing input: {}", e);
@@ -193,15 +235,27 @@ mod test {
     #[test]
     fn test_sum_middle_valid_numbers() {
         let page_orderings = vec![
-                vec![75, 47, 61, 53, 29],
-                vec![97, 61, 53, 29, 13],
-                vec![75, 29, 13],
-                vec![75, 97, 47, 61, 53],
-                vec![61, 13, 29],
-                vec![97, 13, 75, 29, 47],
-            ];
+            vec![75, 47, 61, 53, 29],
+            vec![97, 61, 53, 29, 13],
+            vec![75, 29, 13],
+            vec![75, 97, 47, 61, 53],
+            vec![61, 13, 29],
+            vec![97, 13, 75, 29, 47],
+        ];
         assert_eq!(sum_of_middle_valid_numbers(&page_orderings, RULES), 143);
+    }
 
+    #[test]
+    fn test_sum_middle_corrected_numbers() {
+        let page_orderings = vec![
+            vec![75, 47, 61, 53, 29],
+            vec![97, 61, 53, 29, 13],
+            vec![75, 29, 13],
+            vec![75, 97, 47, 61, 53],
+            vec![61, 13, 29],
+            vec![97, 13, 75, 29, 47],
+        ];
+        assert_eq!(sum_of_middle_corrected_numbers(&page_orderings, RULES), 123);
     }
 
     #[test]
@@ -234,5 +288,24 @@ mod test {
         assert_eq!(in_order(&vec![75, 97, 47, 61, 53], RULES), false);
         assert_eq!(in_order(&vec![61, 13, 29], RULES), false);
         assert_eq!(in_order(&vec![97, 13, 75, 29, 47], RULES), false);
+    }
+
+    #[test]
+    fn test_correct() {
+        let vec1 = vec![75,97,47,61,53];
+        let vec2 = vec![61,13,29];
+        let vec3 = vec![97,13,75,29,47];
+        assert_eq!(
+            correct(&vec1, &applicable_rules(&vec1, &RULES)),
+            vec![97, 75, 47, 61, 53]
+        );
+        assert_eq!(
+            correct(&vec2, &applicable_rules(&vec2, &RULES)),
+            vec![61, 29, 13]
+        );
+        assert_eq!(
+            correct(&vec3, &applicable_rules(&vec3, &RULES)),
+            vec![97, 75, 47, 29, 13],
+        );
     }
 }
